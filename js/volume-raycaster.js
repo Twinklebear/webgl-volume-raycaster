@@ -23,12 +23,13 @@ var vertShader =
 "out vec3 vray_dir;" +
 "void main(void) {" +
 	"vray_dir = pos - eye_pos;" +
-	"gl_Position = proj_view * vec4(vray_dir, 1);" +
+	"gl_Position = proj_view * vec4(pos, 1);" +
 "}";
 
 var fragShader =
 "#version 300 es\n" +
 "uniform highp sampler3D volume;" +
+"uniform highp sampler2D palette;" +
 "uniform highp vec3 eye_pos;" +
 "in highp vec3 vray_dir;" +
 "out highp vec4 color;" +
@@ -47,25 +48,28 @@ var fragShader =
 "}" +
 
 "void main(void) {" +
+	//"color = texture(palette, gl_FragCoord.xy / vec2(640, 480));" +
 	"highp vec3 transformed_eye = eye_pos;" +
 	"highp vec3 ray_dir = normalize(vray_dir);" +
 	"highp vec2 t_hit = intersectBox(transformed_eye, ray_dir);" +
+	"color = vec4(0);" +
 	"if (t_hit.x > t_hit.y) {" +
 		"discard;" +
 	"}" +
-	"color = vec4(0);" +
-	"highp int n_samples = 64;" +
+	"highp int n_samples = 128;" +
 	"highp float dt = (t_hit.y - t_hit.x) / float(n_samples);" +
 	// TODO: for later when we decided step size based on volume dims
 	//for (highp float t = t_hit.x; t < t_hit.y; t += dt)
+	"highp vec3 p = transformed_eye + t_hit.x * ray_dir;" +
 	"for (highp int i = 0; i < n_samples; ++i) {" +
-		"highp vec3 p = transformed_eye + float(i) * dt * ray_dir;" +
-		"highp float s = texture(volume, p).r;" +
-		"color.rgb += (1.0 - color.a) * s * vec3(s);" +
-		"color.a += (1.0 - color.a) * s;" +
+		"highp float val = texture(volume, p).r;" +
+		"highp vec4 val_color = vec4(texture(palette, vec2(val, 0.5)).rgb, val);"+
+		"color.rgb += (1.0 - color.a) * val_color.a * val_color.rgb;" +
+		"color.a += (1.0 - color.a) * val_color.a;" +
 		"if (color.a >= 0.95) {" +
 			"break;" +
 		"}" +
+		"p += ray_dir * dt;" +
 	"}" +
 "}";
 
@@ -81,7 +85,6 @@ window.onload = function(){
 	var WIDTH = canvas.getAttribute("width");
 	var HEIGHT = canvas.getAttribute("height");
 
-
 	var vao = gl.createVertexArray();
 	gl.bindVertexArray(vao);
 
@@ -95,57 +98,87 @@ window.onload = function(){
 	var volumeTexture = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_3D, volumeTexture);
 	// TODO: Is non-pow2 or non-even supported?
-	gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, 64, 64, 64);
+	var vol_dims = [64, 64, 64];
+	gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, vol_dims[0], vol_dims[1], vol_dims[2]);
 	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-	//var url = "http://cdn.klacansky.com/open-scivis-datasets/nucleon/nucleon_41x41x41_uint8.raw";
-	//var url = "http://sci.utah.edu/~will/nucleon_41x41x41_uint8.raw"
-	//var url = "file://C:/Users/Will/repos/webgl-volume-raycasting/nucleon_41x41x41_uint8.raw"
-	var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/fuel_64x64x64_uint8.raw"
-	var req = new XMLHttpRequest();
-	req.open("GET", url, true);
-	req.responseType = "arraybuffer";
-	req.onload = function(evt) {
-		console.log("got it");
-		console.log(evt);
-		var dataBuffer = req.response;
-		if (dataBuffer) {
-			dataBuffer = new Uint8Array(dataBuffer);
-			console.log("Got " + dataBuffer.byteLength + " bytes");
-		} else {
-			console.log("no buffer?");
-		}
+	gl.activeTexture(gl.TEXTURE1);
+	var palette = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, palette);
+	gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 180, 14);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	var paletteImage = new Image();
+	paletteImage.onload = function() {
+		gl.activeTexture(gl.TEXTURE1);
+		gl.bindTexture(gl.TEXTURE_2D, palette);
+		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 14,
+			gl.RGBA, gl.UNSIGNED_BYTE, paletteImage);
 
-		gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0, 64, 64, 64,
-			gl.RED, gl.UNSIGNED_BYTE, dataBuffer);
+		console.log("Created palette, now requesting volume");
 
-		var shader = compileShader(vertShader, fragShader);
-		gl.useProgram(shader);
+		//var url = "http://cdn.klacansky.com/open-scivis-datasets/nucleon/nucleon_41x41x41_uint8.raw";
+		//var url = "http://sci.utah.edu/~will/nucleon_41x41x41_uint8.raw";
+		//var url = "file://C:/Users/Will/repos/webgl-volume-raycasting/nucleon_41x41x41_uint8.raw";
+		var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/fuel_64x64x64_uint8.raw";
+		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/neghip_64x64x64_uint8.raw";
+		var req = new XMLHttpRequest();
+		req.open("GET", url, true);
+		req.responseType = "arraybuffer";
+		req.onload = function(evt) {
+			console.log("got volume");
+			var dataBuffer = req.response;
+			if (dataBuffer) {
+				dataBuffer = new Uint8Array(dataBuffer);
+				console.log("Got " + dataBuffer.byteLength + " bytes");
+			} else {
+				console.log("no buffer?");
+			}
 
-		var eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
-		var projViewLoc = gl.getUniformLocation(shader, "proj_view");
-		gl.uniform3fv(eyePosLoc, [0.5, 0.5, 1]);
-		var proj = mat4.create();
-		mat4.perspective(proj, 40.0, WIDTH / HEIGHT, 0.01, 100);
-		gl.uniformMatrix4fv(projViewLoc, false, proj);
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_3D, volumeTexture);
+			gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0,
+				vol_dims[0], vol_dims[1], vol_dims[2],
+				gl.RED, gl.UNSIGNED_BYTE, dataBuffer);
 
-		gl.disable(gl.DEPTH_TEST);
-		gl.enable(gl.CULL_FACE);
-		gl.cullFace(gl.FRONT);
-		gl.enable(gl.BLEND);
-		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+			var shader = compileShader(vertShader, fragShader);
+			gl.useProgram(shader);
 
-		gl.clearColor(0.0, 0.0, 0.0, 0.0);
-		gl.clear(gl.COLOR_BUFFER_BIT);
+			var eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
+			var projViewLoc = gl.getUniformLocation(shader, "proj_view");
 
-		gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
-		// TODO render every 16ms in a loop
+			var eye = vec3.set(vec3.create(), 0.8, 0.8, 1.3);
+			var center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
+			var up = vec3.set(vec3.create(), 0, 1, 0);
+			gl.uniform3fv(eyePosLoc, eye);
+
+			var proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
+				WIDTH / HEIGHT, 0.1, 100);
+			var view = mat4.lookAt(mat4.create(), eye, center, up);
+			var proj_view = mat4.mul(mat4.create(), proj, view);
+			gl.uniformMatrix4fv(projViewLoc, false, proj_view);
+			gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
+			gl.uniform1i(gl.getUniformLocation(shader, "palette"), 1);
+
+			gl.disable(gl.DEPTH_TEST);
+			gl.enable(gl.CULL_FACE);
+			gl.cullFace(gl.FRONT);
+			gl.enable(gl.BLEND);
+			gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+			gl.clearColor(0.0, 0.0, 0.0, 0.0);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
+			// TODO render every 16ms in a loop
+		};
+		req.send(null);
 	};
-	req.send(null);
-
+	paletteImage.src = "cool-warm-paraview.png";
 }
 
 // Compile and link the shaders vert and frag. vert and frag should contain
