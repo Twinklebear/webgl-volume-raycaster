@@ -49,18 +49,17 @@ var fragShader =
 
 "void main(void) {" +
 	//"color = texture(palette, gl_FragCoord.xy / vec2(640, 480));" +
-	"highp vec3 transformed_eye = eye_pos;" +
 	"highp vec3 ray_dir = normalize(vray_dir);" +
-	"highp vec2 t_hit = intersectBox(transformed_eye, ray_dir);" +
+	"highp vec2 t_hit = intersectBox(eye_pos, ray_dir);" +
 	"color = vec4(0);" +
 	"if (t_hit.x > t_hit.y) {" +
 		"discard;" +
 	"}" +
-	"highp int n_samples = 128;" +
+	"highp int n_samples = 64;" +
 	"highp float dt = (t_hit.y - t_hit.x) / float(n_samples);" +
 	// TODO: for later when we decided step size based on volume dims
 	//for (highp float t = t_hit.x; t < t_hit.y; t += dt)
-	"highp vec3 p = transformed_eye + t_hit.x * ray_dir;" +
+	"highp vec3 p = eye_pos + t_hit.x * ray_dir;" +
 	"for (highp int i = 0; i < n_samples; ++i) {" +
 		"highp float val = texture(volume, p).r;" +
 		"highp vec4 val_color = vec4(texture(palette, vec2(val, 0.5)).rgb, val);"+
@@ -126,9 +125,14 @@ window.onload = function(){
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycasting/nucleon_41x41x41_uint8.raw";
 		var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/fuel_64x64x64_uint8.raw";
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/neghip_64x64x64_uint8.raw";
+		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/hydrogen_atom_128x128x128_uint8.raw";
+		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/foot_256x256x256_uint8.raw";
 		var req = new XMLHttpRequest();
 		req.open("GET", url, true);
 		req.responseType = "arraybuffer";
+		req.onprogress = function(evt) {
+			console.log("progress = " + evt.loaded / evt.total * 100);
+		};
 		req.onload = function(evt) {
 			console.log("got volume");
 			var dataBuffer = req.response;
@@ -151,9 +155,9 @@ window.onload = function(){
 			var eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
 			var projViewLoc = gl.getUniformLocation(shader, "proj_view");
 
-			var eye = vec3.set(vec3.create(), 0.8, 0.8, 1.3);
+			var eye = vec3.set(vec3.create(), 1.0, 0.5, -0.5);
 			var center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
-			var up = vec3.set(vec3.create(), 0, 1, 0);
+			var up = vec3.set(vec3.create(), 0, -1, 0);
 			gl.uniform3fv(eyePosLoc, eye);
 
 			var proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
