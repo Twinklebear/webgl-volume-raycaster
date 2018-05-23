@@ -104,7 +104,7 @@ window.onload = function(){
 	//var url = "http://cdn.klacansky.com/open-scivis-datasets/nucleon/nucleon_41x41x41_uint8.raw";
 	//var url = "http://sci.utah.edu/~will/nucleon_41x41x41_uint8.raw"
 	//var url = "file://C:/Users/Will/repos/webgl-volume-raycasting/nucleon_41x41x41_uint8.raw"
-	var url = "file://C:/Users/Will/repos/webgl-volume-raycasting/fuel_64x64x64_uint8.raw"
+	var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/fuel_64x64x64_uint8.raw"
 	var req = new XMLHttpRequest();
 	req.open("GET", url, true);
 	req.responseType = "arraybuffer";
