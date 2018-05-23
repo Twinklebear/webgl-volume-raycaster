@@ -47,6 +47,18 @@ var fragShader =
 	"return vec2(t0, t1);" +
 "}" +
 
+// Pseudo-random number gen from
+// http://www.reedbeta.com/blog/quick-and-easy-gpu-random-numbers-in-d3d11/
+// with some tweaks for the range of values
+"highp float wang_hash(highp int seed) {" +
+	"seed = (seed ^ 61) ^ (seed >> 16);" +
+	"seed *= 9;" +
+	"seed = seed ^ (seed >> 4);" +
+	"seed *= 0x27d4eb2d;" +
+	"seed = seed ^ (seed >> 15);" +
+	"return float(seed % 2147483647) / float(2147483647);" +
+"}" +
+
 "void main(void) {" +
 	//"color = texture(palette, gl_FragCoord.xy / vec2(640, 480));" +
 	"highp vec3 ray_dir = normalize(vray_dir);" +
@@ -57,9 +69,10 @@ var fragShader =
 	"}" +
 	"highp int n_samples = 64;" +
 	"highp float dt = (t_hit.y - t_hit.x) / float(n_samples);" +
+	"highp float offset = wang_hash(int(gl_FragCoord.x + 640.0 * gl_FragCoord.y));" +
 	// TODO: for later when we decided step size based on volume dims
 	//for (highp float t = t_hit.x; t < t_hit.y; t += dt)
-	"highp vec3 p = eye_pos + t_hit.x * ray_dir;" +
+	"highp vec3 p = eye_pos + (t_hit.x + offset * dt) * ray_dir;" +
 	"for (highp int i = 0; i < n_samples; ++i) {" +
 		"highp float val = texture(volume, p).r;" +
 		"highp vec4 val_color = vec4(texture(palette, vec2(val, 0.5)).rgb, val);"+
@@ -154,6 +167,7 @@ window.onload = function(){
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/neghip_64x64x64_uint8.raw";
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/hydrogen_atom_128x128x128_uint8.raw";
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/foot_256x256x256_uint8.raw";
+		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/bonsai_256x256x256_uint8.raw";
 		var req = new XMLHttpRequest();
 		req.open("GET", url, true);
 		req.responseType = "arraybuffer";
