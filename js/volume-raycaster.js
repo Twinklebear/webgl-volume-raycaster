@@ -74,6 +74,9 @@ var fragShader =
 
 var gl = null;
 
+var uploadVolume = function(dataBuffer) {
+}
+
 window.onload = function(){
 	var canvas = document.getElementById("glcanvas");
 	gl = canvas.getContext("webgl2");
@@ -83,6 +86,30 @@ window.onload = function(){
 	}
 	var WIDTH = canvas.getAttribute("width");
 	var HEIGHT = canvas.getAttribute("height");
+
+	var proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
+		WIDTH / HEIGHT, 0.1, 100);
+
+	var center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
+	var camera = new ArcballCamera(center, 0.01, [WIDTH, HEIGHT]);
+
+	var prevMouse = null;
+	var mouseState = [false, false];
+	canvas.addEventListener("mousemove", function(evt) {
+		var curMouse = [evt.clientX, evt.clientY];
+		if (!prevMouse) {
+			prevMouse = [evt.clientX, evt.clientY];
+		} else {
+			if (evt.buttons == 1) {
+				if (evt.shiftKey) {
+					camera.zoom(prevMouse[1] - curMouse[1]);
+				} else {
+					camera.rotate(prevMouse, curMouse);
+				}
+			}
+		}
+		prevMouse = curMouse;
+	});
 
 	var vao = gl.createVertexArray();
 	gl.bindVertexArray(vao);
@@ -154,17 +181,8 @@ window.onload = function(){
 
 			var eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
 			var projViewLoc = gl.getUniformLocation(shader, "proj_view");
+			var projView = mat4.create();
 
-			var eye = vec3.set(vec3.create(), 1.0, 0.5, -0.5);
-			var center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
-			var up = vec3.set(vec3.create(), 0, -1, 0);
-			gl.uniform3fv(eyePosLoc, eye);
-
-			var proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
-				WIDTH / HEIGHT, 0.1, 100);
-			var view = mat4.lookAt(mat4.create(), eye, center, up);
-			var proj_view = mat4.mul(mat4.create(), proj, view);
-			gl.uniformMatrix4fv(projViewLoc, false, proj_view);
 			gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
 			gl.uniform1i(gl.getUniformLocation(shader, "palette"), 1);
 
@@ -174,11 +192,18 @@ window.onload = function(){
 			gl.enable(gl.BLEND);
 			gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-			gl.clearColor(0.0, 0.0, 0.0, 0.0);
-			gl.clear(gl.COLOR_BUFFER_BIT);
+			setInterval(function() {
+				gl.clearColor(0.0, 0.0, 0.0, 0.0);
+				gl.clear(gl.COLOR_BUFFER_BIT);
 
-			gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
-			// TODO render every 16ms in a loop
+				projView = mat4.mul(projView, proj, camera.camera);
+				gl.uniformMatrix4fv(projViewLoc, false, projView);
+
+				eye = [camera.invCamera[12], camera.invCamera[13], camera.invCamera[14]];
+				gl.uniform3fv(eyePosLoc, eye);
+
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
+			}, 32);
 		};
 		req.send(null);
 	};
