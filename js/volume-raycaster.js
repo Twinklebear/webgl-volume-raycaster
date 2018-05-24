@@ -169,10 +169,13 @@ window.onload = function(){
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/foot_256x256x256_uint8.raw";
 		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/bonsai_256x256x256_uint8.raw";
 		var req = new XMLHttpRequest();
-		req.open("GET", url, true);
+		req.open("GET", url);
 		req.responseType = "arraybuffer";
 		req.onprogress = function(evt) {
 			console.log("progress = " + evt.loaded / evt.total * 100);
+		};
+		req.onerror = function(evt) {
+			console.log("failed to load volume");
 		};
 		req.onload = function(evt) {
 			console.log("got volume");
