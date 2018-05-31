@@ -160,19 +160,19 @@ window.onload = function(){
 
 		console.log("Created palette, now requesting volume");
 
-		//var url = "http://cdn.klacansky.com/open-scivis-datasets/nucleon/nucleon_41x41x41_uint8.raw";
-		//var url = "http://sci.utah.edu/~will/nucleon_41x41x41_uint8.raw";
-		//var url = "file://C:/Users/Will/repos/webgl-volume-raycasting/nucleon_41x41x41_uint8.raw";
-		var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/fuel_64x64x64_uint8.raw";
-		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/neghip_64x64x64_uint8.raw";
-		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/hydrogen_atom_128x128x128_uint8.raw";
-		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/foot_256x256x256_uint8.raw";
-		//var url = "file://C:/Users/Will/repos/webgl-volume-raycaster/bonsai_256x256x256_uint8.raw";
+		var file = "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw";
+		//var file = "rdnhdxmxtfxe0sa/bonsai_256x256x256_uint8.raw"
+		//var file = "ic0mik3qv4vqacm/foot_256x256x256_uint8.raw";
+		//var file = "5rfjobn0lvb7tmo/skull_256x256x256_uint8.raw";
+		//var file = "jwbav8s3wmmxd5x/hydrogen_atom_128x128x128_uint8.raw";
+		//var file = "zgocya7h33nltu9/neghip_64x64x64_uint8.raw"
+		var url = "https://www.dl.dropboxusercontent.com/s/" + file + "?dl=1";
 		var req = new XMLHttpRequest();
-		req.open("GET", url);
+		req.open("GET", url, true);
 		req.responseType = "arraybuffer";
 		req.onprogress = function(evt) {
-			console.log("progress = " + evt.loaded / evt.total * 100);
+			var vol_size = vol_dims[0] * vol_dims[1] * vol_dims[2];
+			console.log("progress = " + evt.loaded / vol_size * 100);
 		};
 		req.onerror = function(evt) {
 			console.log("failed to load volume");
@@ -222,7 +222,7 @@ window.onload = function(){
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
 			}, 32);
 		};
-		req.send(null);
+		req.send();
 	};
 	paletteImage.src = "palettes/cool-warm-paraview.png";
 }
