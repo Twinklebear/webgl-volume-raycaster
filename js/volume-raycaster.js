@@ -102,6 +102,7 @@ var projViewLoc = null;
 var volumeScaleLoc = null;
 var volumeDimsLoc = null;
 var dtScaleLoc = null;
+var tabFocused = true;
 
 var volumes = {
 	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
@@ -180,19 +181,28 @@ var selectVolume = function() {
 		var longestAxis = Math.max(volDims[0], Math.max(volDims[1], volDims[2]));
 		var volScale = [volDims[0] / longestAxis, volDims[1] / longestAxis,
 			volDims[2] / longestAxis];
-		console.log(volScale);
-		console.log(volDims);
 		gl.uniform3fv(volumeScaleLoc, volScale);
 
 		var newVolumeUpload = true;
 		var targetFrameTime = 32;
+		var samplingRate = 1.0;
 		if (!volumeTexture) {
 			volumeTexture = tex;
 			setInterval(function() {
+				// Save them some battery if they're not viewing the tab
+				// TODO: Here we should actually clear the interval if we lose focus
+				if (!tabFocused) {
+					return;
+				}
+
 				var startTime = new Date();
 				gl.clearColor(0.0, 0.0, 0.0, 0.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
+				// Reset the sampling rate for new volumes, in case they're smaller
+				if (newVolumeUpload) {
+					gl.uniform1f(dtScaleLoc, samplingRate);
+				}
 				projView = mat4.mul(projView, proj, camera.camera);
 				gl.uniformMatrix4fv(projViewLoc, false, projView);
 
@@ -200,14 +210,18 @@ var selectVolume = function() {
 				gl.uniform3fv(eyePosLoc, eye);
 
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
+				// Wait for rendering to actually finish so we get the real render time
+				gl.finish();
 				var endTime = new Date();
 				var renderTime = endTime - startTime;
+				var targetSamplingRate = renderTime / targetFrameTime;
+
 				// If we're dropping frames, decrease the sampling rate
-				if (!newVolumeUpload && renderTime > targetFrameTime ) {
-					console.log(renderTime);
+				if (!newVolumeUpload && targetSamplingRate > samplingRate) {
 					console.log("Decreasing sampling rate to reach target framerate");
-					console.log("New sampling rate scale: " + (renderTime / targetFrameTime));
-					gl.uniform1f(dtScaleLoc, renderTime / targetFrameTime);
+					samplingRate = 0.5 * samplingRate + 0.5 * targetSamplingRate;
+					console.log("New sampling rate : " + samplingRate);
+					gl.uniform1f(dtScaleLoc, samplingRate);
 				}
 				newVolumeUpload = false;
 			}, targetFrameTime);
@@ -227,6 +241,14 @@ var selectColormap = function() {
 			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
 	};
 	colormapImage.src = colormaps[selection];
+}
+
+window.onfocus = function() {
+	tabFocused = true;
+}
+
+window.onblur = function() {
+	tabFocused = false;
 }
 
 window.onload = function(){
