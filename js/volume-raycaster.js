@@ -228,7 +228,8 @@ window.onload = function(){
 		}
 		prevMouse = curMouse;
 	});
-	canvas.addEventListener("mousewheel", function(evt) {
+	canvas.addEventListener("wheel", function(evt) {
+		camera.zoom(-evt.deltaY);
 	});
 
 	// Setup VAO and VBO to render the cube to run the raymarching shader
