@@ -215,22 +215,7 @@ window.onload = function(){
 	camera = new ArcballCamera(center, 0.01, [WIDTH, HEIGHT]);
 
 	// Register mouse and touch listeners
-	var prevMouse = null;
-	var mouseState = [false, false];
-	canvas.addEventListener("mousemove", function(evt) {
-		var curMouse = [evt.clientX, evt.clientY];
-		if (!prevMouse) {
-			prevMouse = [evt.clientX, evt.clientY];
-		} else {
-			if (evt.buttons == 1) {
-				camera.rotate(prevMouse, curMouse);
-			}
-		}
-		prevMouse = curMouse;
-	});
-	canvas.addEventListener("wheel", function(evt) {
-		camera.zoom(-evt.deltaY);
-	});
+	registerEventHandlers(canvas);
 
 	// Setup VAO and VBO to render the cube to run the raymarching shader
 	var vao = gl.createVertexArray();
@@ -298,6 +283,95 @@ var fillcolormapSelector = function() {
 		opt.innerHTML = p;
 		selector.appendChild(opt);
 	}
+}
+
+var registerEventHandlers = function(canvas) {
+	var prevMouse = null;
+	var mouseState = [false, false];
+	canvas.addEventListener("mousemove", function(evt) {
+		var curMouse = [evt.clientX, evt.clientY];
+		if (!prevMouse) {
+			prevMouse = [evt.clientX, evt.clientY];
+		} else {
+			if (evt.buttons == 1) {
+				camera.rotate(prevMouse, curMouse);
+			}
+		}
+		prevMouse = curMouse;
+	});
+
+	canvas.addEventListener("wheel", function(evt) {
+		camera.zoom(-evt.deltaY);
+	});
+
+	var touches = {};
+	canvas.addEventListener("touchstart", function(evt) {
+		evt.preventDefault();
+		for (var i = 0; i < evt.changedTouches.length; ++i) {
+			var t = evt.changedTouches[i];
+			touches[t.identifier] = [t.clientX, t.clientY];
+		}
+	});
+
+	canvas.addEventListener("touchmove", function(evt) {
+		evt.preventDefault();
+		var numTouches = Object.keys(touches).length;
+		// Single finger to rotate the camera
+		if (numTouches == 1) {
+			var t = evt.changedTouches[0];
+			var prevTouch = touches[t.identifier];
+			camera.rotate(prevTouch, [t.clientX, t.clientY]);
+		} else if (numTouches == 2) {
+			var curTouches = {};
+			for (var i = 0; i < evt.changedTouches.length; ++i) {
+				var t = evt.changedTouches[i];
+				curTouches[t.identifier] = [t.clientX, t.clientY];
+			}
+			// If some touches didn't change make sure we have them in
+			// our curTouches list to compute the pinch distance
+			// Also get the old touch points to compute the distance here
+			var oldTouches = [];
+			for (t in touches) {
+				if (!(t in curTouches)) {
+					curTouches[t] = touches[t];
+				}
+				oldTouches.push(touches[t]);
+			}
+			// TODO: Probably easier with an array?
+			var oldDist = pointDist(oldTouches[0], oldTouches[1]);
+
+			var newTouches = [];
+			for (t in curTouches) {
+				newTouches.push(curTouches[t]);
+			}
+			var newDist = pointDist(newTouches[0], newTouches[1]);
+
+			console.log(oldDist);
+			console.log(newDist);
+			camera.zoom(newDist - oldDist);
+		}
+
+		// Update the existing list of touches with the current positions
+		for (var i = 0; i < evt.changedTouches.length; ++i) {
+			var t = evt.changedTouches[i];
+			touches[t.identifier] = [t.clientX, t.clientY];
+		}
+	});
+
+	var touchEnd = function(evt) {
+		evt.preventDefault();
+		for (var i = 0; i < evt.changedTouches.length; ++i) {
+			var t = evt.changedTouches[i];
+			delete touches[t.identifier];
+		}
+	}
+	canvas.addEventListener("touchcancel", touchEnd);
+	canvas.addEventListener("touchend", touchEnd);
+}
+
+var pointDist = function(a, b) {
+	var v = [b[0] - a[0], b[1] - a[1]];
+	return Math.sqrt(Math.pow(v[0], 2.0) + Math.pow(v[1], 2.0));
 }
 
 // Compile and link the shaders vert and frag. vert and frag should contain
