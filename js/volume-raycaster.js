@@ -191,7 +191,6 @@ var selectVolume = function() {
 			volumeTexture = tex;
 			setInterval(function() {
 				// Save them some battery if they're not viewing the tab
-				// TODO: Here we should actually clear the interval if we lose focus
 				if (!tabFocused) {
 					return;
 				}
