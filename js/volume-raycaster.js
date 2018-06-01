@@ -87,6 +87,7 @@ var fragShader =
 
 var gl = null;
 var volumeTexture = null;
+var paletteTex = null;
 var fileRegex = /.*\/(\w+)_(\d+)x(\d+)x(\d+)_(\w+)\.*/;
 var proj = null;
 var camera = null;
@@ -100,7 +101,16 @@ var volumes = {
 	"Skull": "5rfjobn0lvb7tmo/skull_256x256x256_uint8.raw",
 	"Hydrogen Atom": "jwbav8s3wmmxd5x/hydrogen_atom_128x128x128_uint8.raw",
 	"Neghip": "zgocya7h33nltu9/neghip_64x64x64_uint8.raw",
-}
+};
+
+var palettes = {
+	"Cool Warm": "palettes/cool-warm-paraview.png",
+	"Matplotlib Plasma": "palettes/matplotlib-plasma.png",
+	"Matplotlib Virdis": "palettes/matplotlib-virdis.png",
+	"Rainbow": "palettes/rainbow.png",
+	"Samsel Linear Grean": "palettes/samsel-linear-green.png",
+	"Samsel Linear YGB 1211G": "palettes/samsel-linear-ygb-1211g.png",
+};
 
 var loadVolume = function(file, onload) {
 	console.log("loading " + file);
@@ -176,7 +186,21 @@ var selectVolume = function() {
 	});
 }
 
+var selectPalette = function() {
+	var selection = document.getElementById("paletteList").value;
+	var paletteImage = new Image();
+	paletteImage.onload = function() {
+		gl.activeTexture(gl.TEXTURE1);
+		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
+			gl.RGBA, gl.UNSIGNED_BYTE, paletteImage);
+	};
+	paletteImage.src = palettes[selection];
+}
+
 window.onload = function(){
+	fillVolumeSelector();
+	fillPaletteSelector();
+
 	var canvas = document.getElementById("glcanvas");
 	gl = canvas.getContext("webgl2");
 	if (!gl) {
@@ -236,7 +260,8 @@ window.onload = function(){
 	gl.enable(gl.BLEND);
 	gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-	// Load and create the palette texture
+	// Load the default palette and upload it, after which we
+	// load the default volume.
 	var paletteImage = new Image();
 	paletteImage.onload = function() {
 		var palette = gl.createTexture();
@@ -252,6 +277,26 @@ window.onload = function(){
 		selectVolume();
 	};
 	paletteImage.src = "palettes/cool-warm-paraview.png";
+}
+
+var fillVolumeSelector = function() {
+	var selector = document.getElementById("volumeList");
+	for (v in volumes) {
+		var opt = document.createElement("option");
+		opt.value = v;
+		opt.innerHTML = v;
+		selector.appendChild(opt);
+	}
+}
+
+var fillPaletteSelector = function() {
+	var selector = document.getElementById("paletteList");
+	for (p in palettes) {
+		var opt = document.createElement("option");
+		opt.value = p;
+		opt.innerHTML = p;
+		selector.appendChild(opt);
+	}
 }
 
 // Compile and link the shaders vert and frag. vert and frag should contain
