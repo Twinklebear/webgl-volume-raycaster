@@ -119,18 +119,20 @@ var loadVolume = function(file, onload) {
 	
 	var url = "https://www.dl.dropboxusercontent.com/s/" + file + "?dl=1";
 	var req = new XMLHttpRequest();
+	var loadingProgressText = document.getElementById("loadingText");
 
 	req.open("GET", url, true);
 	req.responseType = "arraybuffer";
 	req.onprogress = function(evt) {
 		var vol_size = vol_dims[0] * vol_dims[1] * vol_dims[2];
-		console.log("progress = " + evt.loaded / vol_size * 100);
+		var percent = evt.loaded / vol_size * 100;
+		loadingProgressText.innerHTML = "Loading: " + percent.toFixed(2) + "%";
 	};
 	req.onerror = function(evt) {
-		console.log("failed to load volume");
+		loadingProgressText.innerHTML = "Error Loading Volume";
 	};
 	req.onload = function(evt) {
-		console.log("got volume");
+		loadingProgressText.innerHTML = "Loading Done";
 		var dataBuffer = req.response;
 		if (dataBuffer) {
 			dataBuffer = new Uint8Array(dataBuffer);
