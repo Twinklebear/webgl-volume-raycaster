@@ -86,8 +86,94 @@ var fragShader =
 "}";
 
 var gl = null;
+var volumeTexture = null;
+var fileRegex = /.*\/(\w+)_(\d+)x(\d+)x(\d+)_(\w+)\.*/;
+var proj = null;
+var camera = null;
+var projView = null;
+var projViewLoc = null;
 
-var uploadVolume = function(dataBuffer) {
+var volumes = {
+	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
+	"Bonsai": "rdnhdxmxtfxe0sa/bonsai_256x256x256_uint8.raw",
+	"Foot": "ic0mik3qv4vqacm/foot_256x256x256_uint8.raw",
+	"Skull": "5rfjobn0lvb7tmo/skull_256x256x256_uint8.raw",
+	"Hydrogen Atom": "jwbav8s3wmmxd5x/hydrogen_atom_128x128x128_uint8.raw",
+	"Neghip": "zgocya7h33nltu9/neghip_64x64x64_uint8.raw",
+}
+
+var loadVolume = function(file, onload) {
+	console.log("loading " + file);
+	var m = file.match(fileRegex);
+	var vol_dims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
+	
+	var url = "https://www.dl.dropboxusercontent.com/s/" + file + "?dl=1";
+	var req = new XMLHttpRequest();
+
+	req.open("GET", url, true);
+	req.responseType = "arraybuffer";
+	req.onprogress = function(evt) {
+		var vol_size = vol_dims[0] * vol_dims[1] * vol_dims[2];
+		console.log("progress = " + evt.loaded / vol_size * 100);
+	};
+	req.onerror = function(evt) {
+		console.log("failed to load volume");
+	};
+	req.onload = function(evt) {
+		console.log("got volume");
+		var dataBuffer = req.response;
+		if (dataBuffer) {
+			dataBuffer = new Uint8Array(dataBuffer);
+			console.log("Got " + dataBuffer.byteLength + " bytes");
+			onload(file, dataBuffer);
+		} else {
+			console.log("no buffer?");
+		}
+	};
+	req.send();
+}
+
+var selectVolume = function() {
+	var selection = document.getElementById("volumeList").value;
+
+	loadVolume(volumes[selection], function(file, dataBuffer) {
+		var tex = gl.createTexture();
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_3D, tex);
+
+		var m = file.match(fileRegex);
+
+		var vol_dims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
+		gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, vol_dims[0], vol_dims[1], vol_dims[2]);
+		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_3D, tex);
+		gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0,
+			vol_dims[0], vol_dims[1], vol_dims[2],
+			gl.RED, gl.UNSIGNED_BYTE, dataBuffer);
+
+		if (!volumeTexture) {
+			setInterval(function() {
+				gl.clearColor(0.0, 0.0, 0.0, 0.0);
+				gl.clear(gl.COLOR_BUFFER_BIT);
+
+				projView = mat4.mul(projView, proj, camera.camera);
+				gl.uniformMatrix4fv(projViewLoc, false, projView);
+
+				var eye = [camera.invCamera[12], camera.invCamera[13], camera.invCamera[14]];
+				gl.uniform3fv(eyePosLoc, eye);
+
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
+			}, 32);
+		} else {
+			gl.deleteTexture(volumeTexture);
+			volumeTexture = tex;
+		}
+	});
 }
 
 window.onload = function(){
@@ -100,12 +186,13 @@ window.onload = function(){
 	var WIDTH = canvas.getAttribute("width");
 	var HEIGHT = canvas.getAttribute("height");
 
-	var proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
+	proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
 		WIDTH / HEIGHT, 0.1, 100);
 
 	var center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
-	var camera = new ArcballCamera(center, 0.01, [WIDTH, HEIGHT]);
+	camera = new ArcballCamera(center, 0.01, [WIDTH, HEIGHT]);
 
+	// Register mouse and touch listeners
 	var prevMouse = null;
 	var mouseState = [false, false];
 	canvas.addEventListener("mousemove", function(evt) {
@@ -114,16 +201,13 @@ window.onload = function(){
 			prevMouse = [evt.clientX, evt.clientY];
 		} else {
 			if (evt.buttons == 1) {
-				if (evt.shiftKey) {
-					camera.zoom(prevMouse[1] - curMouse[1]);
-				} else {
-					camera.rotate(prevMouse, curMouse);
-				}
+				camera.rotate(prevMouse, curMouse);
 			}
 		}
 		prevMouse = curMouse;
 	});
 
+	// Setup VAO and VBO to render the cube to run the raymarching shader
 	var vao = gl.createVertexArray();
 	gl.bindVertexArray(vao);
 
@@ -134,95 +218,38 @@ window.onload = function(){
 	gl.enableVertexAttribArray(0);
 	gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
 
-	var volumeTexture = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_3D, volumeTexture);
-	// TODO: Is non-pow2 or non-even supported?
-	var vol_dims = [64, 64, 64];
-	gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, vol_dims[0], vol_dims[1], vol_dims[2]);
-	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	var shader = compileShader(vertShader, fragShader);
+	gl.useProgram(shader);
 
-	gl.activeTexture(gl.TEXTURE1);
-	var palette = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_2D, palette);
-	gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 180, 1);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
+	projViewLoc = gl.getUniformLocation(shader, "proj_view");
+	projView = mat4.create();
+
+	gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
+	gl.uniform1i(gl.getUniformLocation(shader, "palette"), 1);
+
+	// Setup required OpenGL state for drawing the back faces and
+	// composting with the background color
+	gl.disable(gl.DEPTH_TEST);
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.FRONT);
+	gl.enable(gl.BLEND);
+	gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+	// Load and create the palette texture
 	var paletteImage = new Image();
 	paletteImage.onload = function() {
+		var palette = gl.createTexture();
 		gl.activeTexture(gl.TEXTURE1);
 		gl.bindTexture(gl.TEXTURE_2D, palette);
+		gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 180, 1);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
 			gl.RGBA, gl.UNSIGNED_BYTE, paletteImage);
 
-		console.log("Created palette, now requesting volume");
-
-		var file = "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw";
-		//var file = "rdnhdxmxtfxe0sa/bonsai_256x256x256_uint8.raw"
-		//var file = "ic0mik3qv4vqacm/foot_256x256x256_uint8.raw";
-		//var file = "5rfjobn0lvb7tmo/skull_256x256x256_uint8.raw";
-		//var file = "jwbav8s3wmmxd5x/hydrogen_atom_128x128x128_uint8.raw";
-		//var file = "zgocya7h33nltu9/neghip_64x64x64_uint8.raw"
-		var url = "https://www.dl.dropboxusercontent.com/s/" + file + "?dl=1";
-		var req = new XMLHttpRequest();
-		req.open("GET", url, true);
-		req.responseType = "arraybuffer";
-		req.onprogress = function(evt) {
-			var vol_size = vol_dims[0] * vol_dims[1] * vol_dims[2];
-			console.log("progress = " + evt.loaded / vol_size * 100);
-		};
-		req.onerror = function(evt) {
-			console.log("failed to load volume");
-		};
-		req.onload = function(evt) {
-			console.log("got volume");
-			var dataBuffer = req.response;
-			if (dataBuffer) {
-				dataBuffer = new Uint8Array(dataBuffer);
-				console.log("Got " + dataBuffer.byteLength + " bytes");
-			} else {
-				console.log("no buffer?");
-			}
-
-			gl.activeTexture(gl.TEXTURE0);
-			gl.bindTexture(gl.TEXTURE_3D, volumeTexture);
-			gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0,
-				vol_dims[0], vol_dims[1], vol_dims[2],
-				gl.RED, gl.UNSIGNED_BYTE, dataBuffer);
-
-			var shader = compileShader(vertShader, fragShader);
-			gl.useProgram(shader);
-
-			var eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
-			var projViewLoc = gl.getUniformLocation(shader, "proj_view");
-			var projView = mat4.create();
-
-			gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
-			gl.uniform1i(gl.getUniformLocation(shader, "palette"), 1);
-
-			gl.disable(gl.DEPTH_TEST);
-			gl.enable(gl.CULL_FACE);
-			gl.cullFace(gl.FRONT);
-			gl.enable(gl.BLEND);
-			gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-			setInterval(function() {
-				gl.clearColor(0.0, 0.0, 0.0, 0.0);
-				gl.clear(gl.COLOR_BUFFER_BIT);
-
-				projView = mat4.mul(projView, proj, camera.camera);
-				gl.uniformMatrix4fv(projViewLoc, false, projView);
-
-				eye = [camera.invCamera[12], camera.invCamera[13], camera.invCamera[14]];
-				gl.uniform3fv(eyePosLoc, eye);
-
-				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
-			}, 32);
-		};
-		req.send();
+		selectVolume();
 	};
 	paletteImage.src = "palettes/cool-warm-paraview.png";
 }
@@ -230,7 +257,7 @@ window.onload = function(){
 // Compile and link the shaders vert and frag. vert and frag should contain
 // the shader source code for the vertex and fragment shaders respectively
 // Returns the compiled and linked program, or null if compilation or linking failed
-function compileShader(vert, frag){
+var compileShader = function(vert, frag){
 	var vs = gl.createShader(gl.VERTEX_SHADER);
 	gl.shaderSource(vs, vert);
 	gl.compileShader(vs);
@@ -260,5 +287,4 @@ function compileShader(vert, frag){
 	}
 	return program;
 }
-
 
