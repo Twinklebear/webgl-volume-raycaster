@@ -8,8 +8,10 @@
 	<div class="container">
 		<canvas id="glcanvas" width="640" height="480"></canvas>
 	</div>
-	<select id="volumeList" onchange="selectVolume()"></select>
-	<select id="paletteList" onchange="selectPalette()"></select>
+	<p>
+	Volume: <select id="volumeList" onchange="selectVolume()"></select>
+	Colormap: <select id="colormapList" onchange="selectColormap()"></select>
+
 	<p id="loadingText"></p>
 	<script src="js/gl-matrix-min.js"></script>
 	<script src="js/arcball.js"></script>

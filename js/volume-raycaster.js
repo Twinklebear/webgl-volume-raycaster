@@ -29,7 +29,7 @@ var vertShader =
 var fragShader =
 "#version 300 es\n" +
 "uniform highp sampler3D volume;" +
-"uniform highp sampler2D palette;" +
+"uniform highp sampler2D colormap;" +
 "uniform highp vec3 eye_pos;" +
 "in highp vec3 vray_dir;" +
 "out highp vec4 color;" +
@@ -60,7 +60,7 @@ var fragShader =
 "}" +
 
 "void main(void) {" +
-	//"color = texture(palette, gl_FragCoord.xy / vec2(640, 480));" +
+	//"color = texture(colormap, gl_FragCoord.xy / vec2(640, 480));" +
 	"highp vec3 ray_dir = normalize(vray_dir);" +
 	"highp vec2 t_hit = intersectBox(eye_pos, ray_dir);" +
 	"color = vec4(0);" +
@@ -75,7 +75,7 @@ var fragShader =
 	"highp vec3 p = eye_pos + (t_hit.x + offset * dt) * ray_dir;" +
 	"for (highp int i = 0; i < n_samples; ++i) {" +
 		"highp float val = texture(volume, p).r;" +
-		"highp vec4 val_color = vec4(texture(palette, vec2(val, 0.5)).rgb, val);"+
+		"highp vec4 val_color = vec4(texture(colormap, vec2(val, 0.5)).rgb, val);"+
 		"color.rgb += (1.0 - color.a) * val_color.a * val_color.rgb;" +
 		"color.a += (1.0 - color.a) * val_color.a;" +
 		"if (color.a >= 0.95) {" +
@@ -87,7 +87,7 @@ var fragShader =
 
 var gl = null;
 var volumeTexture = null;
-var paletteTex = null;
+var colormapTex = null;
 var fileRegex = /.*\/(\w+)_(\d+)x(\d+)x(\d+)_(\w+)\.*/;
 var proj = null;
 var camera = null;
@@ -103,13 +103,13 @@ var volumes = {
 	"Neghip": "zgocya7h33nltu9/neghip_64x64x64_uint8.raw",
 };
 
-var palettes = {
-	"Cool Warm": "palettes/cool-warm-paraview.png",
-	"Matplotlib Plasma": "palettes/matplotlib-plasma.png",
-	"Matplotlib Virdis": "palettes/matplotlib-virdis.png",
-	"Rainbow": "palettes/rainbow.png",
-	"Samsel Linear Grean": "palettes/samsel-linear-green.png",
-	"Samsel Linear YGB 1211G": "palettes/samsel-linear-ygb-1211g.png",
+var colormaps = {
+	"Cool Warm": "colormaps/cool-warm-paraview.png",
+	"Matplotlib Plasma": "colormaps/matplotlib-plasma.png",
+	"Matplotlib Virdis": "colormaps/matplotlib-virdis.png",
+	"Rainbow": "colormaps/rainbow.png",
+	"Samsel Linear Grean": "colormaps/samsel-linear-green.png",
+	"Samsel Linear YGB 1211G": "colormaps/samsel-linear-ygb-1211g.png",
 };
 
 var loadVolume = function(file, onload) {
@@ -188,20 +188,20 @@ var selectVolume = function() {
 	});
 }
 
-var selectPalette = function() {
-	var selection = document.getElementById("paletteList").value;
-	var paletteImage = new Image();
-	paletteImage.onload = function() {
+var selectColormap = function() {
+	var selection = document.getElementById("colormapList").value;
+	var colormapImage = new Image();
+	colormapImage.onload = function() {
 		gl.activeTexture(gl.TEXTURE1);
 		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
-			gl.RGBA, gl.UNSIGNED_BYTE, paletteImage);
+			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
 	};
-	paletteImage.src = palettes[selection];
+	colormapImage.src = colormaps[selection];
 }
 
 window.onload = function(){
 	fillVolumeSelector();
-	fillPaletteSelector();
+	fillcolormapSelector();
 
 	var canvas = document.getElementById("glcanvas");
 	gl = canvas.getContext("webgl2");
@@ -252,7 +252,7 @@ window.onload = function(){
 	projView = mat4.create();
 
 	gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
-	gl.uniform1i(gl.getUniformLocation(shader, "palette"), 1);
+	gl.uniform1i(gl.getUniformLocation(shader, "colormap"), 1);
 
 	// Setup required OpenGL state for drawing the back faces and
 	// composting with the background color
@@ -262,23 +262,23 @@ window.onload = function(){
 	gl.enable(gl.BLEND);
 	gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-	// Load the default palette and upload it, after which we
+	// Load the default colormap and upload it, after which we
 	// load the default volume.
-	var paletteImage = new Image();
-	paletteImage.onload = function() {
-		var palette = gl.createTexture();
+	var colormapImage = new Image();
+	colormapImage.onload = function() {
+		var colormap = gl.createTexture();
 		gl.activeTexture(gl.TEXTURE1);
-		gl.bindTexture(gl.TEXTURE_2D, palette);
+		gl.bindTexture(gl.TEXTURE_2D, colormap);
 		gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 180, 1);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 180, 1,
-			gl.RGBA, gl.UNSIGNED_BYTE, paletteImage);
+			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
 
 		selectVolume();
 	};
-	paletteImage.src = "palettes/cool-warm-paraview.png";
+	colormapImage.src = "colormaps/cool-warm-paraview.png";
 }
 
 var fillVolumeSelector = function() {
@@ -291,9 +291,9 @@ var fillVolumeSelector = function() {
 	}
 }
 
-var fillPaletteSelector = function() {
-	var selector = document.getElementById("paletteList");
-	for (p in palettes) {
+var fillcolormapSelector = function() {
+	var selector = document.getElementById("colormapList");
+	for (p in colormaps) {
 		var opt = document.createElement("option");
 		opt.value = p;
 		opt.innerHTML = p;
