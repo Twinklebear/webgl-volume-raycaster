@@ -321,7 +321,7 @@ var registerEventHandlers = function(canvas) {
 			var t = evt.changedTouches[0];
 			var prevTouch = touches[t.identifier];
 			camera.rotate(prevTouch, [t.clientX, t.clientY]);
-		} else if (numTouches == 2) {
+		} else {
 			var curTouches = {};
 			for (var i = 0; i < evt.changedTouches.length; ++i) {
 				var t = evt.changedTouches[i];
