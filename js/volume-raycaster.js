@@ -337,7 +337,6 @@ var registerEventHandlers = function(canvas) {
 				}
 				oldTouches.push(touches[t]);
 			}
-			// TODO: Probably easier with an array?
 			var oldDist = pointDist(oldTouches[0], oldTouches[1]);
 
 			var newTouches = [];
@@ -346,8 +345,6 @@ var registerEventHandlers = function(canvas) {
 			}
 			var newDist = pointDist(newTouches[0], newTouches[1]);
 
-			console.log(oldDist);
-			console.log(newDist);
 			camera.zoom(newDist - oldDist);
 		}
 
