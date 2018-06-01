@@ -37,6 +37,7 @@ var fragShader =
 "uniform highp sampler2D colormap;" +
 "uniform highp ivec3 volume_dims;" +
 "uniform highp vec3 eye_pos;" +
+"uniform highp float dt_scale;" +
 "in highp vec3 vray_dir;" +
 "flat in highp vec3 transformed_eye;" +
 "out highp vec4 color;" +
@@ -75,8 +76,7 @@ var fragShader =
 	"}" +
 	//"highp int n_samples = 64;" +
 	"highp vec3 dt_vec = 1.0 / (vec3(volume_dims) * abs(ray_dir));" +
-	// TODO: Scale dt by the device power
-	"highp float dt = 1.5 * min(dt_vec.x, min(dt_vec.y, dt_vec.z));" +
+	"highp float dt = dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z));" +
 	"highp float offset = wang_hash(int(gl_FragCoord.x + 640.0 * gl_FragCoord.y));" +
 	"highp vec3 p = transformed_eye + (t_hit.x + offset * dt) * ray_dir;" +
 	"for (highp float t = t_hit.x; t < t_hit.y; t += dt) {" +
@@ -101,6 +101,7 @@ var projView = null;
 var projViewLoc = null;
 var volumeScaleLoc = null;
 var volumeDimsLoc = null;
+var dtScaleLoc = null;
 
 var volumes = {
 	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
@@ -119,7 +120,7 @@ var colormaps = {
 	"Matplotlib Plasma": "colormaps/matplotlib-plasma.png",
 	"Matplotlib Virdis": "colormaps/matplotlib-virdis.png",
 	"Rainbow": "colormaps/rainbow.png",
-	"Samsel Linear Grean": "colormaps/samsel-linear-green.png",
+	"Samsel Linear Green": "colormaps/samsel-linear-green.png",
 	"Samsel Linear YGB 1211G": "colormaps/samsel-linear-ygb-1211g.png",
 };
 
@@ -183,8 +184,12 @@ var selectVolume = function() {
 		console.log(volDims);
 		gl.uniform3fv(volumeScaleLoc, volScale);
 
+		var newVolumeUpload = true;
+		var targetFrameTime = 32;
 		if (!volumeTexture) {
+			volumeTexture = tex;
 			setInterval(function() {
+				var startTime = new Date();
 				gl.clearColor(0.0, 0.0, 0.0, 0.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -195,7 +200,17 @@ var selectVolume = function() {
 				gl.uniform3fv(eyePosLoc, eye);
 
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
-			}, 32);
+				var endTime = new Date();
+				var renderTime = endTime - startTime;
+				// If we're dropping frames, decrease the sampling rate
+				if (!newVolumeUpload && renderTime > targetFrameTime ) {
+					console.log(renderTime);
+					console.log("Decreasing sampling rate to reach target framerate");
+					console.log("New sampling rate scale: " + (renderTime / targetFrameTime));
+					gl.uniform1f(dtScaleLoc, renderTime / targetFrameTime);
+				}
+				newVolumeUpload = false;
+			}, targetFrameTime);
 		} else {
 			gl.deleteTexture(volumeTexture);
 			volumeTexture = tex;
@@ -254,10 +269,12 @@ window.onload = function(){
 	projViewLoc = gl.getUniformLocation(shader, "proj_view");
 	volumeScaleLoc = gl.getUniformLocation(shader, "volume_scale");
 	volumeDimsLoc = gl.getUniformLocation(shader, "volume_dims");
+	dtScaleLoc = gl.getUniformLocation(shader, "dt_scale");
 	projView = mat4.create();
 
 	gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
 	gl.uniform1i(gl.getUniformLocation(shader, "colormap"), 1);
+	gl.uniform1f(dtScaleLoc, 1.0);
 
 	// Setup required OpenGL state for drawing the back faces and
 	// composting with the background color
