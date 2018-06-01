@@ -149,21 +149,17 @@ var selectVolume = function() {
 	var selection = document.getElementById("volumeList").value;
 
 	loadVolume(volumes[selection], function(file, dataBuffer) {
+		var m = file.match(fileRegex);
+		var vol_dims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
+
 		var tex = gl.createTexture();
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_3D, tex);
-
-		var m = file.match(fileRegex);
-
-		var vol_dims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
 		gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, vol_dims[0], vol_dims[1], vol_dims[2]);
 		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_3D, tex);
 		gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0,
 			vol_dims[0], vol_dims[1], vol_dims[2],
 			gl.RED, gl.UNSIGNED_BYTE, dataBuffer);
@@ -231,6 +227,8 @@ window.onload = function(){
 			}
 		}
 		prevMouse = curMouse;
+	});
+	canvas.addEventListener("mousewheel", function(evt) {
 	});
 
 	// Setup VAO and VBO to render the cube to run the raymarching shader
