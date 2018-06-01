@@ -103,6 +103,9 @@ var volumeScaleLoc = null;
 var volumeDimsLoc = null;
 var dtScaleLoc = null;
 var tabFocused = true;
+var newVolumeUpload = true;
+var targetFrameTime = 32;
+var samplingRate = 1.0;
 
 var volumes = {
 	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
@@ -183,9 +186,7 @@ var selectVolume = function() {
 			volDims[2] / longestAxis];
 		gl.uniform3fv(volumeScaleLoc, volScale);
 
-		var newVolumeUpload = true;
-		var targetFrameTime = 32;
-		var samplingRate = 1.0;
+		newVolumeUpload = true;
 		if (!volumeTexture) {
 			volumeTexture = tex;
 			setInterval(function() {
@@ -201,6 +202,7 @@ var selectVolume = function() {
 
 				// Reset the sampling rate for new volumes, in case they're smaller
 				if (newVolumeUpload) {
+					samplingRate = 1.0;
 					gl.uniform1f(dtScaleLoc, samplingRate);
 				}
 				projView = mat4.mul(projView, proj, camera.camera);
