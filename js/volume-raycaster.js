@@ -129,32 +129,37 @@ var colormaps = {
 };
 
 var loadVolume = function(file, onload) {
-	console.log("loading " + file);
 	var m = file.match(fileRegex);
 	var volDims = [parseInt(m[2]), parseInt(m[3]), parseInt(m[4])];
 	
 	var url = "https://www.dl.dropboxusercontent.com/s/" + file + "?dl=1";
 	var req = new XMLHttpRequest();
 	var loadingProgressText = document.getElementById("loadingText");
+	var loadingProgressBar = document.getElementById("loadingProgressBar");
+
+	loadingProgressText.innerHTML = "Loading Volume";
+	loadingProgressBar.setAttribute("style", "width: 0%");
 
 	req.open("GET", url, true);
 	req.responseType = "arraybuffer";
 	req.onprogress = function(evt) {
 		var vol_size = volDims[0] * volDims[1] * volDims[2];
 		var percent = evt.loaded / vol_size * 100;
-		loadingProgressText.innerHTML = "Loading: " + percent.toFixed(2) + "%";
+		loadingProgressBar.setAttribute("style", "width: " + percent.toFixed(2) + "%");
 	};
 	req.onerror = function(evt) {
 		loadingProgressText.innerHTML = "Error Loading Volume";
+		loadingProgressBar.setAttribute("style", "width: 0%");
 	};
 	req.onload = function(evt) {
-		loadingProgressText.innerHTML = "Loading Done";
+		loadingProgressText.innerHTML = "Loaded Volume";
+		loadingProgressBar.setAttribute("style", "width: 100%");
 		var dataBuffer = req.response;
 		if (dataBuffer) {
 			dataBuffer = new Uint8Array(dataBuffer);
-			console.log("Got " + dataBuffer.byteLength + " bytes");
 			onload(file, dataBuffer);
 		} else {
+			alert("Unable to load buffer properly from volume?");
 			console.log("no buffer?");
 		}
 	};
@@ -259,7 +264,7 @@ window.onload = function(){
 	var canvas = document.getElementById("glcanvas");
 	gl = canvas.getContext("webgl2");
 	if (!gl) {
-		alert("Unable to initialize WebGL2. Your browser may not support it")
+		alert("Unable to initialize WebGL2. Your browser may not support it");
 		return;
 	}
 	var WIDTH = canvas.getAttribute("width");
@@ -350,9 +355,11 @@ var registerEventHandlers = function(canvas) {
 	var prevMouse = null;
 	var mouseState = [false, false];
 	canvas.addEventListener("mousemove", function(evt) {
-		var curMouse = [evt.clientX, evt.clientY];
+		var rect = canvas.getBoundingClientRect();
+		var curMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
+		console.log(evt);
 		if (!prevMouse) {
-			prevMouse = [evt.clientX, evt.clientY];
+			prevMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
 		} else {
 			if (evt.buttons == 1) {
 				camera.rotate(prevMouse, curMouse);
@@ -368,26 +375,28 @@ var registerEventHandlers = function(canvas) {
 
 	var touches = {};
 	canvas.addEventListener("touchstart", function(evt) {
+		var rect = canvas.getBoundingClientRect();
 		evt.preventDefault();
 		for (var i = 0; i < evt.changedTouches.length; ++i) {
 			var t = evt.changedTouches[i];
-			touches[t.identifier] = [t.clientX, t.clientY];
+			touches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
 		}
 	});
 
 	canvas.addEventListener("touchmove", function(evt) {
 		evt.preventDefault();
+		var rect = canvas.getBoundingClientRect();
 		var numTouches = Object.keys(touches).length;
 		// Single finger to rotate the camera
 		if (numTouches == 1) {
 			var t = evt.changedTouches[0];
 			var prevTouch = touches[t.identifier];
-			camera.rotate(prevTouch, [t.clientX, t.clientY]);
+			camera.rotate(prevTouch, [t.clientX - rect.left, t.clientY - rect.top]);
 		} else {
 			var curTouches = {};
 			for (var i = 0; i < evt.changedTouches.length; ++i) {
 				var t = evt.changedTouches[i];
-				curTouches[t.identifier] = [t.clientX, t.clientY];
+				curTouches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
 			}
 			// If some touches didn't change make sure we have them in
 			// our curTouches list to compute the pinch distance
@@ -413,7 +422,7 @@ var registerEventHandlers = function(canvas) {
 		// Update the existing list of touches with the current positions
 		for (var i = 0; i < evt.changedTouches.length; ++i) {
 			var t = evt.changedTouches[i];
-			touches[t.identifier] = [t.clientX, t.clientY];
+			touches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
 		}
 	});
 
