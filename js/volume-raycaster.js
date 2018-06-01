@@ -116,7 +116,7 @@ var volumes = {
 	"Bonsai": "rdnhdxmxtfxe0sa/bonsai_256x256x256_uint8.raw",
 	"Foot": "ic0mik3qv4vqacm/foot_256x256x256_uint8.raw",
 	"Skull": "5rfjobn0lvb7tmo/skull_256x256x256_uint8.raw",
-	"Aneurism": "3ykigaiym8uiwbp/aneurism_256x256x256_uint8.raw",
+	"Aneurysm": "3ykigaiym8uiwbp/aneurism_256x256x256_uint8.raw",
 };
 
 var colormaps = {
