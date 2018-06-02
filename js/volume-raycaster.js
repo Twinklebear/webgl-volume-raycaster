@@ -74,7 +74,7 @@ var fragShader =
 	"if (t_hit.x > t_hit.y) {" +
 		"discard;" +
 	"}" +
-	//"highp int n_samples = 64;" +
+	"t_hit.x = max(t_hit.x, 0.0);" +
 	"highp vec3 dt_vec = 1.0 / (vec3(volume_dims) * abs(ray_dir));" +
 	"highp float dt = dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z));" +
 	"highp float offset = wang_hash(int(gl_FragCoord.x + 640.0 * gl_FragCoord.y));" +
@@ -357,7 +357,6 @@ var registerEventHandlers = function(canvas) {
 	canvas.addEventListener("mousemove", function(evt) {
 		var rect = canvas.getBoundingClientRect();
 		var curMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
-		console.log(evt);
 		if (!prevMouse) {
 			prevMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
 		} else {
