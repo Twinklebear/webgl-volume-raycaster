@@ -197,7 +197,6 @@ var selectVolume = function() {
 		newVolumeUpload = true;
 		if (!volumeTexture) {
 			volumeTexture = tex;
-			var startTime = new Date();
 			var didLoseFocus = false;
 			setInterval(function() {
 				// Save them some battery if they're not viewing the tab
@@ -205,7 +204,7 @@ var selectVolume = function() {
 					didLoseFocus = true;
 					return;
 				}
-
+				var startTime = new Date();
 				gl.clearColor(0.0, 0.0, 0.0, 0.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -222,6 +221,8 @@ var selectVolume = function() {
 				gl.uniform3fv(eyePosLoc, eye);
 
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
+				// Wait for rendering to actually finish
+				gl.finish();
 				var endTime = new Date();
 				var renderTime = endTime - startTime;
 				var targetSamplingRate = renderTime / targetFrameTime;
