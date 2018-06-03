@@ -197,13 +197,15 @@ var selectVolume = function() {
 		newVolumeUpload = true;
 		if (!volumeTexture) {
 			volumeTexture = tex;
+			var startTime = new Date();
+			var didLoseFocus = false;
 			setInterval(function() {
 				// Save them some battery if they're not viewing the tab
-				if (!tabFocused) {
+				if (!document.hasFocus() && !newVolumeUpload) {
+					didLoseFocus = true;
 					return;
 				}
 
-				var startTime = new Date();
 				gl.clearColor(0.0, 0.0, 0.0, 0.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -220,20 +222,18 @@ var selectVolume = function() {
 				gl.uniform3fv(eyePosLoc, eye);
 
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
-				// Wait for rendering to actually finish so we get the real render time
-				gl.finish();
 				var endTime = new Date();
 				var renderTime = endTime - startTime;
 				var targetSamplingRate = renderTime / targetFrameTime;
 
 				// If we're dropping frames, decrease the sampling rate
-				if (!newVolumeUpload && targetSamplingRate > samplingRate) {
-					console.log("Decreasing sampling rate to reach target framerate");
+				if (!newVolumeUpload && !didLoseFocus && targetSamplingRate > samplingRate) {
 					samplingRate = 0.5 * samplingRate + 0.5 * targetSamplingRate;
-					console.log("New sampling rate : " + samplingRate);
 					gl.uniform1f(dtScaleLoc, samplingRate);
 				}
 				newVolumeUpload = false;
+				didLoseFocus = false;
+				startTime = endTime;
 			}, targetFrameTime);
 		} else {
 			gl.deleteTexture(volumeTexture);
@@ -251,14 +251,6 @@ var selectColormap = function() {
 			gl.RGBA, gl.UNSIGNED_BYTE, colormapImage);
 	};
 	colormapImage.src = colormaps[selection];
-}
-
-window.onfocus = function() {
-	tabFocused = true;
-}
-
-window.onblur = function() {
-	tabFocused = false;
 }
 
 window.onload = function(){
