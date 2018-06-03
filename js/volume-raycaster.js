@@ -24,12 +24,12 @@ var vertShader =
 "out vec3 vray_dir;" +
 "flat out highp vec3 transformed_eye;" +
 "void main(void) {" +
-	"highp vec3 volume_translation = volume_scale * 0.5 - vec3(0.5);" +
-	"transformed_eye = eye_pos / volume_scale + volume_translation;" +
+	"highp vec3 volume_translation = vec3(0.5) - volume_scale * 0.5;" +
+	"transformed_eye = (eye_pos - volume_translation) / volume_scale;" +
 	// TODO: For non-uniform size volumes we need to transform them differently as well
 	// to center them properly
 	"vray_dir = pos - transformed_eye;" +
-	"gl_Position = proj_view * vec4(pos * volume_scale - volume_translation, 1);" +
+	"gl_Position = proj_view * vec4(pos * volume_scale + volume_translation, 1);" +
 "}";
 
 var fragShader =
@@ -71,7 +71,6 @@ var fragShader =
 "void main(void) {" +
 	"highp vec3 ray_dir = normalize(vray_dir);" +
 	"highp vec2 t_hit = intersectBox(transformed_eye, ray_dir);" +
-	"color = vec4(0);" +
 	"if (t_hit.x > t_hit.y) {" +
 		"discard;" +
 	"}" +
