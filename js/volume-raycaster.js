@@ -106,6 +106,9 @@ var tabFocused = true;
 var newVolumeUpload = true;
 var targetFrameTime = 32;
 var samplingRate = 1.0;
+var WIDTH = 640;
+var HEIGHT = 480;
+const center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
 
 var volumes = {
 	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
@@ -204,8 +207,9 @@ var selectVolume = function() {
 				gl.clearColor(0.0, 0.0, 0.0, 0.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
-				// Reset the sampling rate for new volumes, in case they're smaller
+				// Reset the sampling rate and camera for new volumes
 				if (newVolumeUpload) {
+					camera = new ArcballCamera(center, 2, [WIDTH, HEIGHT]);
 					samplingRate = 1.0;
 					gl.uniform1f(dtScaleLoc, samplingRate);
 				}
@@ -267,14 +271,13 @@ window.onload = function(){
 		alert("Unable to initialize WebGL2. Your browser may not support it");
 		return;
 	}
-	var WIDTH = canvas.getAttribute("width");
-	var HEIGHT = canvas.getAttribute("height");
+	WIDTH = canvas.getAttribute("width");
+	HEIGHT = canvas.getAttribute("height");
 
 	proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
 		WIDTH / HEIGHT, 0.1, 100);
 
-	var center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
-	camera = new ArcballCamera(center, 0.01, [WIDTH, HEIGHT]);
+	camera = new ArcballCamera(center, 2, [WIDTH, HEIGHT]);
 
 	// Register mouse and touch listeners
 	registerEventHandlers(canvas);
@@ -362,6 +365,8 @@ var registerEventHandlers = function(canvas) {
 		} else {
 			if (evt.buttons == 1) {
 				camera.rotate(prevMouse, curMouse);
+			} else if (evt.buttons == 2) {
+				camera.pan([curMouse[0] - prevMouse[0], prevMouse[1] - curMouse[1]]);
 			}
 		}
 		prevMouse = curMouse;

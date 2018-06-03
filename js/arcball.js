@@ -32,12 +32,21 @@ ArcballCamera.prototype.rotate = function(prevMouse, curMouse) {
 }
 
 ArcballCamera.prototype.zoom = function(amount) {
-	var vt = vec3.set(vec3.create(), 0.0, 0.0, amount * this.zoomSpeed);
+	var vt = vec3.set(vec3.create(), 0.0, 0.0, amount * this.invScreen[1] * this.zoomSpeed);
 	var t = mat4.fromTranslation(mat4.create(), vt);
 	this.translation = mat4.mul(this.translation, t, this.translation);
 	if (this.translation[14] >= -0.2) {
 		this.translation[14] = -0.2;
 	}
+	this.updateCameraMatrix();
+}
+
+ArcballCamera.prototype.pan = function(mouseDelta) {
+	var delta = vec4.set(vec4.create(), mouseDelta[0] * this.invScreen[0],
+		mouseDelta[1] * this.invScreen[1], 0, 0);
+	var worldDelta = vec4.transformMat4(vec4.create(), delta, this.invCamera);
+	var translation = mat4.fromTranslation(mat4.create(), worldDelta);
+	this.centerTranslation = mat4.mul(this.centerTranslation, translation, this.centerTranslation);
 	this.updateCameraMatrix();
 }
 
