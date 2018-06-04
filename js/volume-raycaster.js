@@ -197,11 +197,9 @@ var selectVolume = function() {
 		newVolumeUpload = true;
 		if (!volumeTexture) {
 			volumeTexture = tex;
-			var didLoseFocus = false;
 			setInterval(function() {
 				// Save them some battery if they're not viewing the tab
-				if (!document.hasFocus() && !newVolumeUpload) {
-					didLoseFocus = true;
+				if (document.hidden) {
 					return;
 				}
 				var startTime = new Date();
@@ -228,12 +226,11 @@ var selectVolume = function() {
 				var targetSamplingRate = renderTime / targetFrameTime;
 
 				// If we're dropping frames, decrease the sampling rate
-				if (!newVolumeUpload && !didLoseFocus && targetSamplingRate > samplingRate) {
+				if (!newVolumeUpload && targetSamplingRate > samplingRate) {
 					samplingRate = 0.5 * samplingRate + 0.5 * targetSamplingRate;
 					gl.uniform1f(dtScaleLoc, samplingRate);
 				}
 				newVolumeUpload = false;
-				didLoseFocus = false;
 				startTime = endTime;
 			}, targetFrameTime);
 		} else {
@@ -302,7 +299,6 @@ window.onload = function(){
 
 	// Setup required OpenGL state for drawing the back faces and
 	// composting with the background color
-	gl.disable(gl.DEPTH_TEST);
 	gl.enable(gl.CULL_FACE);
 	gl.cullFace(gl.FRONT);
 	gl.enable(gl.BLEND);
@@ -370,6 +366,12 @@ var registerEventHandlers = function(canvas) {
 		camera.zoom(-evt.deltaY);
 	});
 
+	// Suppress default mouse event behavior on the canvas
+	// since we use right-click and drag to pan.
+	canvas.addEventListener("mouseup", function(evt) {
+		evt.preventDefault();
+	});
+
 	var touches = {};
 	canvas.addEventListener("touchstart", function(evt) {
 		var rect = canvas.getBoundingClientRect();
@@ -395,6 +397,7 @@ var registerEventHandlers = function(canvas) {
 				var t = evt.changedTouches[i];
 				curTouches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
 			}
+
 			// If some touches didn't change make sure we have them in
 			// our curTouches list to compute the pinch distance
 			// Also get the old touch points to compute the distance here
@@ -405,15 +408,57 @@ var registerEventHandlers = function(canvas) {
 				}
 				oldTouches.push(touches[t]);
 			}
-			var oldDist = pointDist(oldTouches[0], oldTouches[1]);
 
 			var newTouches = [];
 			for (t in curTouches) {
 				newTouches.push(curTouches[t]);
 			}
-			var newDist = pointDist(newTouches[0], newTouches[1]);
 
-			camera.zoom(newDist - oldDist);
+			// Determine if the user is pinching or panning
+			var motionVectors = [
+				vec2.set(vec2.create(), newTouches[0][0] - oldTouches[0][0],
+					newTouches[0][1] - oldTouches[0][1]),
+				vec2.set(vec2.create(), newTouches[1][0] - oldTouches[1][0],
+					newTouches[1][1] - oldTouches[1][1])
+			];
+			var motionDirs = [vec2.create(), vec2.create()];
+			vec2.normalize(motionDirs[0], motionVectors[0]);
+			vec2.normalize(motionDirs[1], motionVectors[1]);
+			
+			var pinchAxis = vec2.set(vec2.create(), oldTouches[1][0] - oldTouches[0][0],
+				oldTouches[1][1] - oldTouches[0][1]);
+			vec2.normalize(pinchAxis, pinchAxis);
+
+			var panAxis = vec2.lerp(vec2.create(), motionVectors[0], motionVectors[1], 0.5);
+			vec2.normalize(panAxis, panAxis);
+
+			var pinchMotion = [
+				vec2.dot(pinchAxis, motionDirs[0]),
+				vec2.dot(pinchAxis, motionDirs[1])
+			];
+			var panMotion = [
+				vec2.dot(panAxis, motionDirs[0]),
+				vec2.dot(panAxis, motionDirs[1])
+			];
+
+			// If we're primarily moving along the pinching axis and in the opposite direction with
+			// the fingers, then the user is zooming.
+			// Otherwise, if the fingers are moving along the same direction they're panning
+			if (Math.abs(pinchMotion[0]) > 0.5 && Math.abs(pinchMotion[1]) > 0.5
+				&& Math.sign(pinchMotion[0]) != Math.sign(pinchMotion[1]))
+			{
+				// Pinch distance change for zooming
+				var oldDist = pointDist(oldTouches[0], oldTouches[1]);
+				var newDist = pointDist(newTouches[0], newTouches[1]);
+				camera.zoom(newDist - oldDist);
+			} else if (Math.abs(panMotion[0]) > 0.5 && Math.abs(panMotion[1]) > 0.5
+				&& Math.sign(panMotion[0]) == Math.sign(panMotion[1]))
+			{
+				// Pan by the average motion of the two fingers
+				var panAmount = vec2.lerp(vec2.create(), motionVectors[0], motionVectors[1], 0.5);
+				panAmount[1] = -panAmount[1];
+				camera.pan(panAmount);
+			}
 		}
 
 		// Update the existing list of touches with the current positions
