@@ -347,6 +347,7 @@ var registerEventHandlers = function(canvas) {
 	var prevMouse = null;
 	var mouseState = [false, false];
 	canvas.addEventListener("mousemove", function(evt) {
+		evt.preventDefault();
 		var rect = canvas.getBoundingClientRect();
 		var curMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
 		if (!prevMouse) {
@@ -366,11 +367,9 @@ var registerEventHandlers = function(canvas) {
 		camera.zoom(-evt.deltaY);
 	});
 
-	// Suppress default mouse event behavior on the canvas
-	// since we use right-click and drag to pan.
-	canvas.addEventListener("mouseup", function(evt) {
+	canvas.oncontextmenu = function (evt) {
 		evt.preventDefault();
-	});
+	};
 
 	var touches = {};
 	canvas.addEventListener("touchstart", function(evt) {
