@@ -6,7 +6,7 @@ Uses [glMatrix](http://glmatrix.net/) for math operations.
 
 ## Images
 
-![neghip](https://i.imgur.com/g5a0I5Y.jpg)
+![neghip](https://i.imgur.com/yLa27hG.png)
 
 ![bonsai](https://i.imgur.com/axr43wJ.png)
 
