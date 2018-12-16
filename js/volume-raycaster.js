@@ -15,93 +15,14 @@ var cubeStrip = [
 	0, 0, 0
 ];
 
-var vertShader =
-"#version 300 es\n" +
-"layout(location=0) in vec3 pos;" +
-"uniform mat4 proj_view;" +
-"uniform highp vec3 eye_pos;" +
-"uniform highp vec3 volume_scale;" +
-"out vec3 vray_dir;" +
-"flat out highp vec3 transformed_eye;" +
-"void main(void) {" +
-	"highp vec3 volume_translation = vec3(0.5) - volume_scale * 0.5;" +
-	"transformed_eye = (eye_pos - volume_translation) / volume_scale;" +
-	// TODO: For non-uniform size volumes we need to transform them differently as well
-	// to center them properly
-	"vray_dir = pos - transformed_eye;" +
-	"gl_Position = proj_view * vec4(pos * volume_scale + volume_translation, 1);" +
-"}";
-
-var fragShader =
-"#version 300 es\n" +
-"uniform highp sampler3D volume;" +
-"uniform highp sampler2D colormap;" +
-"uniform highp ivec3 volume_dims;" +
-"uniform highp vec3 eye_pos;" +
-"uniform highp float dt_scale;" +
-"in highp vec3 vray_dir;" +
-"flat in highp vec3 transformed_eye;" +
-"out highp vec4 color;" +
-
-"highp vec2 intersectBox(highp vec3 orig, highp vec3 dir) {" +
-	"const highp vec3 box_min = vec3(0);" +
-	"const highp vec3 box_max = vec3(1);" +
-	"highp vec3 inv_dir = 1.0 / dir;" +
-	"highp vec3 tmin_tmp = (box_min - orig) * inv_dir;" +
-	"highp vec3 tmax_tmp = (box_max - orig) * inv_dir;" +
-	"highp vec3 tmin = min(tmin_tmp, tmax_tmp);" +
-	"highp vec3 tmax = max(tmin_tmp, tmax_tmp);" +
-	"highp float t0 = max(tmin.x, max(tmin.y, tmin.z));" +
-	"highp float t1 = min(tmax.x, min(tmax.y, tmax.z));" +
-	"return vec2(t0, t1);" +
-"}" +
-
-// Pseudo-random number gen from
-// http://www.reedbeta.com/blog/quick-and-easy-gpu-random-numbers-in-d3d11/
-// with some tweaks for the range of values
-"highp float wang_hash(highp int seed) {" +
-	"seed = (seed ^ 61) ^ (seed >> 16);" +
-	"seed *= 9;" +
-	"seed = seed ^ (seed >> 4);" +
-	"seed *= 0x27d4eb2d;" +
-	"seed = seed ^ (seed >> 15);" +
-	"return float(seed % 2147483647) / float(2147483647);" +
-"}" +
-
-"void main(void) {" +
-	"highp vec3 ray_dir = normalize(vray_dir);" +
-	"highp vec2 t_hit = intersectBox(transformed_eye, ray_dir);" +
-	"if (t_hit.x > t_hit.y) {" +
-		"discard;" +
-	"}" +
-	"t_hit.x = max(t_hit.x, 0.0);" +
-	"highp vec3 dt_vec = 1.0 / (vec3(volume_dims) * abs(ray_dir));" +
-	"highp float dt = dt_scale * min(dt_vec.x, min(dt_vec.y, dt_vec.z));" +
-	"highp float offset = wang_hash(int(gl_FragCoord.x + 640.0 * gl_FragCoord.y));" +
-	"highp vec3 p = transformed_eye + (t_hit.x + offset * dt) * ray_dir;" +
-	"for (highp float t = t_hit.x; t < t_hit.y; t += dt) {" +
-		"highp float val = texture(volume, p).r;" +
-		"highp vec4 val_color = vec4(texture(colormap, vec2(val, 0.5)).rgb, val);"+
-		"color.rgb += (1.0 - color.a) * val_color.a * val_color.rgb;" +
-		"color.a += (1.0 - color.a) * val_color.a;" +
-		"if (color.a >= 0.95) {" +
-			"break;" +
-		"}" +
-		"p += ray_dir * dt;" +
-	"}" +
-"}";
-
 var gl = null;
+var shader = null;
 var volumeTexture = null;
 var colormapTex = null;
 var fileRegex = /.*\/(\w+)_(\d+)x(\d+)x(\d+)_(\w+)\.*/;
 var proj = null;
 var camera = null;
 var projView = null;
-var projViewLoc = null;
-var volumeScaleLoc = null;
-var volumeDimsLoc = null;
-var dtScaleLoc = null;
 var tabFocused = true;
 var newVolumeUpload = true;
 var targetFrameTime = 32;
@@ -189,11 +110,12 @@ var selectVolume = function() {
 			volDims[0], volDims[1], volDims[2],
 			gl.RED, gl.UNSIGNED_BYTE, dataBuffer);
 
-		gl.uniform3iv(volumeDimsLoc, volDims);
 		var longestAxis = Math.max(volDims[0], Math.max(volDims[1], volDims[2]));
 		var volScale = [volDims[0] / longestAxis, volDims[1] / longestAxis,
 			volDims[2] / longestAxis];
-		gl.uniform3fv(volumeScaleLoc, volScale);
+
+		gl.uniform3iv(shader.uniforms["volume_dims"], volDims);
+		gl.uniform3fv(shader.uniforms["volume_scale"], volScale);
 
 		newVolumeUpload = true;
 		if (!volumeTexture) {
@@ -211,13 +133,13 @@ var selectVolume = function() {
 				if (newVolumeUpload) {
 					camera = new ArcballCamera(center, 2, [WIDTH, HEIGHT]);
 					samplingRate = 1.0;
-					gl.uniform1f(dtScaleLoc, samplingRate);
+					gl.uniform1f(shader.uniforms["dt_scale"], samplingRate);
 				}
 				projView = mat4.mul(projView, proj, camera.camera);
-				gl.uniformMatrix4fv(projViewLoc, false, projView);
+				gl.uniformMatrix4fv(shader.uniforms["proj_view"], false, projView);
 
 				var eye = [camera.invCamera[12], camera.invCamera[13], camera.invCamera[14]];
-				gl.uniform3fv(eyePosLoc, eye);
+				gl.uniform3fv(shader.uniforms["eye_pos"], eye);
 
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
 				// Wait for rendering to actually finish
@@ -229,7 +151,7 @@ var selectVolume = function() {
 				// If we're dropping frames, decrease the sampling rate
 				if (!newVolumeUpload && targetSamplingRate > samplingRate) {
 					samplingRate = 0.5 * samplingRate + 0.5 * targetSamplingRate;
-					gl.uniform1f(dtScaleLoc, samplingRate);
+					gl.uniform1f(shader.uniforms["dt_scale"], samplingRate);
 				}
 				newVolumeUpload = false;
 				startTime = endTime;
@@ -269,9 +191,23 @@ window.onload = function(){
 		WIDTH / HEIGHT, 0.1, 100);
 
 	camera = new ArcballCamera(center, 2, [WIDTH, HEIGHT]);
+	projView = mat4.create();
 
 	// Register mouse and touch listeners
-	registerEventHandlers(canvas);
+	var controller = new Controller();
+	controller.mousemove = function(prev, cur, evt) {
+		if (evt.buttons == 1) {
+			camera.rotate(prev, cur);
+
+		} else if (evt.buttons == 2) {
+			camera.pan([cur[0] - prev[0], prev[1] - cur[1]]);
+		}
+	};
+	controller.wheel = function(amt) { camera.zoom(amt); };
+	controller.pinch = controller.wheel;
+	controller.twoFingerDrag = function(drag) { camera.pan(drag); };
+
+	controller.registerForCanvas(canvas);
 
 	// Setup VAO and VBO to render the cube to run the raymarching shader
 	var vao = gl.createVertexArray();
@@ -284,19 +220,12 @@ window.onload = function(){
 	gl.enableVertexAttribArray(0);
 	gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
 
-	var shader = compileShader(vertShader, fragShader);
-	gl.useProgram(shader);
+	shader = new Shader(vertShader, fragShader);
+	shader.use();
 
-	eyePosLoc = gl.getUniformLocation(shader, "eye_pos");
-	projViewLoc = gl.getUniformLocation(shader, "proj_view");
-	volumeScaleLoc = gl.getUniformLocation(shader, "volume_scale");
-	volumeDimsLoc = gl.getUniformLocation(shader, "volume_dims");
-	dtScaleLoc = gl.getUniformLocation(shader, "dt_scale");
-	projView = mat4.create();
-
-	gl.uniform1i(gl.getUniformLocation(shader, "volume"), 0);
-	gl.uniform1i(gl.getUniformLocation(shader, "colormap"), 1);
-	gl.uniform1f(dtScaleLoc, 1.0);
+	gl.uniform1i(shader.uniforms["volume"], 0);
+	gl.uniform1i(shader.uniforms["colormap"], 1);
+	gl.uniform1f(shader.uniforms["dt_scale"], 1.0);
 
 	// Setup required OpenGL state for drawing the back faces and
 	// composting with the background color
@@ -350,179 +279,5 @@ var fillcolormapSelector = function() {
 		opt.innerHTML = p;
 		selector.appendChild(opt);
 	}
-}
-
-var registerEventHandlers = function(canvas) {
-	var prevMouse = null;
-	var mouseState = [false, false];
-	canvas.addEventListener("mousemove", function(evt) {
-		evt.preventDefault();
-		var rect = canvas.getBoundingClientRect();
-		var curMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
-		if (!prevMouse) {
-			prevMouse = [evt.clientX - rect.left, evt.clientY - rect.top];
-		} else {
-			if (evt.buttons == 1) {
-				camera.rotate(prevMouse, curMouse);
-			} else if (evt.buttons == 2) {
-				camera.pan([curMouse[0] - prevMouse[0], prevMouse[1] - curMouse[1]]);
-			}
-		}
-		prevMouse = curMouse;
-	});
-
-	canvas.addEventListener("wheel", function(evt) {
-		evt.preventDefault();
-		camera.zoom(-evt.deltaY);
-	});
-
-	canvas.oncontextmenu = function (evt) {
-		evt.preventDefault();
-	};
-
-	var touches = {};
-	canvas.addEventListener("touchstart", function(evt) {
-		var rect = canvas.getBoundingClientRect();
-		evt.preventDefault();
-		for (var i = 0; i < evt.changedTouches.length; ++i) {
-			var t = evt.changedTouches[i];
-			touches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
-		}
-	});
-
-	canvas.addEventListener("touchmove", function(evt) {
-		evt.preventDefault();
-		var rect = canvas.getBoundingClientRect();
-		var numTouches = Object.keys(touches).length;
-		// Single finger to rotate the camera
-		if (numTouches == 1) {
-			var t = evt.changedTouches[0];
-			var prevTouch = touches[t.identifier];
-			camera.rotate(prevTouch, [t.clientX - rect.left, t.clientY - rect.top]);
-		} else {
-			var curTouches = {};
-			for (var i = 0; i < evt.changedTouches.length; ++i) {
-				var t = evt.changedTouches[i];
-				curTouches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
-			}
-
-			// If some touches didn't change make sure we have them in
-			// our curTouches list to compute the pinch distance
-			// Also get the old touch points to compute the distance here
-			var oldTouches = [];
-			for (t in touches) {
-				if (!(t in curTouches)) {
-					curTouches[t] = touches[t];
-				}
-				oldTouches.push(touches[t]);
-			}
-
-			var newTouches = [];
-			for (t in curTouches) {
-				newTouches.push(curTouches[t]);
-			}
-
-			// Determine if the user is pinching or panning
-			var motionVectors = [
-				vec2.set(vec2.create(), newTouches[0][0] - oldTouches[0][0],
-					newTouches[0][1] - oldTouches[0][1]),
-				vec2.set(vec2.create(), newTouches[1][0] - oldTouches[1][0],
-					newTouches[1][1] - oldTouches[1][1])
-			];
-			var motionDirs = [vec2.create(), vec2.create()];
-			vec2.normalize(motionDirs[0], motionVectors[0]);
-			vec2.normalize(motionDirs[1], motionVectors[1]);
-			
-			var pinchAxis = vec2.set(vec2.create(), oldTouches[1][0] - oldTouches[0][0],
-				oldTouches[1][1] - oldTouches[0][1]);
-			vec2.normalize(pinchAxis, pinchAxis);
-
-			var panAxis = vec2.lerp(vec2.create(), motionVectors[0], motionVectors[1], 0.5);
-			vec2.normalize(panAxis, panAxis);
-
-			var pinchMotion = [
-				vec2.dot(pinchAxis, motionDirs[0]),
-				vec2.dot(pinchAxis, motionDirs[1])
-			];
-			var panMotion = [
-				vec2.dot(panAxis, motionDirs[0]),
-				vec2.dot(panAxis, motionDirs[1])
-			];
-
-			// If we're primarily moving along the pinching axis and in the opposite direction with
-			// the fingers, then the user is zooming.
-			// Otherwise, if the fingers are moving along the same direction they're panning
-			if (Math.abs(pinchMotion[0]) > 0.5 && Math.abs(pinchMotion[1]) > 0.5
-				&& Math.sign(pinchMotion[0]) != Math.sign(pinchMotion[1]))
-			{
-				// Pinch distance change for zooming
-				var oldDist = pointDist(oldTouches[0], oldTouches[1]);
-				var newDist = pointDist(newTouches[0], newTouches[1]);
-				camera.zoom(newDist - oldDist);
-			} else if (Math.abs(panMotion[0]) > 0.5 && Math.abs(panMotion[1]) > 0.5
-				&& Math.sign(panMotion[0]) == Math.sign(panMotion[1]))
-			{
-				// Pan by the average motion of the two fingers
-				var panAmount = vec2.lerp(vec2.create(), motionVectors[0], motionVectors[1], 0.5);
-				panAmount[1] = -panAmount[1];
-				camera.pan(panAmount);
-			}
-		}
-
-		// Update the existing list of touches with the current positions
-		for (var i = 0; i < evt.changedTouches.length; ++i) {
-			var t = evt.changedTouches[i];
-			touches[t.identifier] = [t.clientX - rect.left, t.clientY - rect.top];
-		}
-	});
-
-	var touchEnd = function(evt) {
-		evt.preventDefault();
-		for (var i = 0; i < evt.changedTouches.length; ++i) {
-			var t = evt.changedTouches[i];
-			delete touches[t.identifier];
-		}
-	}
-	canvas.addEventListener("touchcancel", touchEnd);
-	canvas.addEventListener("touchend", touchEnd);
-}
-
-var pointDist = function(a, b) {
-	var v = [b[0] - a[0], b[1] - a[1]];
-	return Math.sqrt(Math.pow(v[0], 2.0) + Math.pow(v[1], 2.0));
-}
-
-// Compile and link the shaders vert and frag. vert and frag should contain
-// the shader source code for the vertex and fragment shaders respectively
-// Returns the compiled and linked program, or null if compilation or linking failed
-var compileShader = function(vert, frag){
-	var vs = gl.createShader(gl.VERTEX_SHADER);
-	gl.shaderSource(vs, vert);
-	gl.compileShader(vs);
-	if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)){
-		alert("Vertex shader failed to compile, see console for log");
-		console.log(gl.getShaderInfoLog(vs));
-		return null;
-	}
-
-	var fs = gl.createShader(gl.FRAGMENT_SHADER);
-	gl.shaderSource(fs, frag);
-	gl.compileShader(fs);
-	if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)){
-		alert("Fragment shader failed to compile, see console for log");
-		console.log(gl.getShaderInfoLog(fs));
-		return null;
-	}
-
-	var program = gl.createProgram();
-	gl.attachShader(program, vs);
-	gl.attachShader(program, fs);
-	gl.linkProgram(program);
-	if (!gl.getProgramParameter(program, gl.LINK_STATUS)){
-		alert("Shader failed to link, see console for log");
-		console.log(gl.getProgramInfoLog(program));
-		return null;
-	}
-	return program;
 }
 
