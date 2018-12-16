@@ -171,6 +171,7 @@ var loadVolume = function(file, onload) {
 
 var selectVolume = function() {
 	var selection = document.getElementById("volumeList").value;
+	window.location.hash = "#" + selection;
 
 	loadVolume(volumes[selection], function(file, dataBuffer) {
 		var m = file.match(fileRegex);
@@ -303,6 +304,14 @@ window.onload = function(){
 	gl.cullFace(gl.FRONT);
 	gl.enable(gl.BLEND);
 	gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+	// See if we were linked to a datset
+	if (window.location.hash) {
+		var linkedDataset = decodeURI(window.location.hash.substr(1));
+		if (linkedDataset in volumes) {
+			document.getElementById("volumeList").value = linkedDataset;
+		}
+	}
 
 	// Load the default colormap and upload it, after which we
 	// load the default volume.
