@@ -92,7 +92,7 @@ var loadVolume = function(file, onload) {
 
 var selectVolume = function() {
 	var selection = document.getElementById("volumeList").value;
-	window.location.hash = "#" + selection;
+	history.replaceState(history.state, "#" + selection, "#" + selection);
 
 	loadVolume(volumes[selection], function(file, dataBuffer) {
 		var m = file.match(fileRegex);
