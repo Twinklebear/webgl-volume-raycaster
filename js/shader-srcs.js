@@ -33,7 +33,7 @@ in vec3 vray_dir;
 flat in vec3 transformed_eye;
 out vec4 color;
 
-vec2 intersectBox(vec3 orig, vec3 dir) {
+vec2 intersect_box(vec3 orig, vec3 dir) {
 	const vec3 box_min = vec3(0);
 	const vec3 box_max = vec3(1);
 	vec3 inv_dir = 1.0 / dir;
@@ -60,7 +60,7 @@ float wang_hash(int seed) {
 
 void main(void) {
 	vec3 ray_dir = normalize(vray_dir);
-	vec2 t_hit = intersectBox(transformed_eye, ray_dir);
+	vec2 t_hit = intersect_box(transformed_eye, ray_dir);
 	if (t_hit.x > t_hit.y) {
 		discard;
 	}
