@@ -26,7 +26,6 @@ precision highp float;
 uniform highp sampler3D volume;
 uniform highp sampler2D colormap;
 uniform ivec3 volume_dims;
-uniform vec3 eye_pos;
 uniform float dt_scale;
 
 in vec3 vray_dir;
