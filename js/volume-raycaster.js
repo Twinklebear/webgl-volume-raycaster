@@ -15,6 +15,9 @@ var cubeStrip = [
 	0, 0, 0
 ];
 
+var takeScreenShot = false;
+var canvas = null;
+
 var gl = null;
 var shader = null;
 var volumeTexture = null;
@@ -126,7 +129,7 @@ var selectVolume = function() {
 					return;
 				}
 				var startTime = new Date();
-				gl.clearColor(0.0, 0.0, 0.0, 0.0);
+				gl.clearColor(1.0, 1.0, 1.0, 1.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
 				// Reset the sampling rate and camera for new volumes
@@ -147,6 +150,11 @@ var selectVolume = function() {
 				var endTime = new Date();
 				var renderTime = endTime - startTime;
 				var targetSamplingRate = renderTime / targetFrameTime;
+
+				if (takeScreenShot) {
+					takeScreenShot = false;
+					canvas.toBlob(function(b) { saveAs(b, "screen.png"); }, "image/png");
+				}
 
 				// If we're dropping frames, decrease the sampling rate
 				if (!newVolumeUpload && targetSamplingRate > samplingRate) {
@@ -178,7 +186,7 @@ window.onload = function(){
 	fillVolumeSelector();
 	fillcolormapSelector();
 
-	var canvas = document.getElementById("glcanvas");
+	canvas = document.getElementById("glcanvas");
 	gl = canvas.getContext("webgl2");
 	if (!gl) {
 		alert("Unable to initialize WebGL2. Your browser may not support it");
@@ -206,6 +214,12 @@ window.onload = function(){
 	controller.wheel = function(amt) { camera.zoom(amt); };
 	controller.pinch = controller.wheel;
 	controller.twoFingerDrag = function(drag) { camera.pan(drag); };
+
+	document.addEventListener("keydown", function(evt) {
+		if (evt.key == "p") {
+			takeScreenShot = true;
+		}
+	});
 
 	controller.registerForCanvas(canvas);
 
