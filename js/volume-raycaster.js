@@ -32,7 +32,10 @@ var targetFrameTime = 32;
 var samplingRate = 1.0;
 var WIDTH = 640;
 var HEIGHT = 480;
+
+const defaultEye = vec3.set(vec3.create(), 0.5, 0.5, 1.5);
 const center = vec3.set(vec3.create(), 0.5, 0.5, 0.5);
+const up = vec3.set(vec3.create(), 0.0, 1.0, 0.0);
 
 var volumes = {
 	"Fuel": "7d87jcsh0qodk78/fuel_64x64x64_uint8.raw",
@@ -134,7 +137,7 @@ var selectVolume = function() {
 
 				// Reset the sampling rate and camera for new volumes
 				if (newVolumeUpload) {
-					camera = new ArcballCamera(center, 2, [WIDTH, HEIGHT]);
+					camera = new ArcballCamera(defaultEye, center, up, 2, [WIDTH, HEIGHT]);
 					samplingRate = 1.0;
 					gl.uniform1f(shader.uniforms["dt_scale"], samplingRate);
 				}
@@ -198,7 +201,7 @@ window.onload = function(){
 	proj = mat4.perspective(mat4.create(), 60 * Math.PI / 180.0,
 		WIDTH / HEIGHT, 0.1, 100);
 
-	camera = new ArcballCamera(center, 2, [WIDTH, HEIGHT]);
+	camera = new ArcballCamera(defaultEye, center, up, 2, [WIDTH, HEIGHT]);
 	projView = mat4.create();
 
 	// Register mouse and touch listeners
