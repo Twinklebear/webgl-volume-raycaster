@@ -161,9 +161,10 @@ var selectVolume = function() {
 
 				// If we're dropping frames, decrease the sampling rate
 				if (!newVolumeUpload && targetSamplingRate > samplingRate) {
-					samplingRate = 0.5 * samplingRate + 0.5 * targetSamplingRate;
+					samplingRate = 0.8 * samplingRate + 0.2 * targetSamplingRate;
 					gl.uniform1f(shader.uniforms["dt_scale"], samplingRate);
 				}
+
 				newVolumeUpload = false;
 				startTime = endTime;
 			}, targetFrameTime);
