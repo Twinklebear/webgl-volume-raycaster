@@ -238,8 +238,8 @@ window.onload = function(){
 	gl.enableVertexAttribArray(0);
 	gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
 
-	shader = new Shader(vertShader, fragShader);
-	shader.use();
+	shader = new Shader(gl, vertShader, fragShader);
+	shader.use(gl);
 
 	gl.uniform1i(shader.uniforms["volume"], 0);
 	gl.uniform1i(shader.uniforms["colormap"], 1);
