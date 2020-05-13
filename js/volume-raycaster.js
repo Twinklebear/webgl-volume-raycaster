@@ -131,7 +131,7 @@ var selectVolume = function() {
 				if (document.hidden) {
 					return;
 				}
-				var startTime = new Date();
+				var startTime = performance.now();
 				gl.clearColor(1.0, 1.0, 1.0, 1.0);
 				gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -150,7 +150,7 @@ var selectVolume = function() {
 				gl.drawArrays(gl.TRIANGLE_STRIP, 0, cubeStrip.length / 3);
 				// Wait for rendering to actually finish
 				gl.finish();
-				var endTime = new Date();
+				var endTime = performance.now();
 				var renderTime = endTime - startTime;
 				var targetSamplingRate = renderTime / targetFrameTime;
 
