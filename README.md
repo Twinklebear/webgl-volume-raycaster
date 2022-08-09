@@ -11,7 +11,7 @@ about how this renderer is implemented.
 
 Uses [webgl-util](https://github.com/Twinklebear/webgl-util) for some WebGL utilities and [glMatrix](http://glmatrix.net/) for matrix/vector operations.
 
-Check out my [WebGPU Volume Raycaster](https://github.com/Twinklebear/webgpu-volume-raycaster/) and [Path Tracer](https://github.com/Twinklebear/webgpu-volume-raycaster/tree/path-tracer) for WebGPU-based examples.
+Check out my [WebGPU Volume Raycaster](https://github.com/Twinklebear/webgpu-volume-raycaster/) and [Path Tracer](https://github.com/Twinklebear/webgpu-volume-pathtracer) for WebGPU-based examples.
 
 ## Images
 
